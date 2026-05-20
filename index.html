@@ -44,11 +44,17 @@
         .status-dot.active { background-color: var(--success-green); box-shadow: 0 0 10px var(--success-green); }
         .status-dot.offline { background-color: var(--warning-red); box-shadow: 0 0 10px var(--warning-red); }
 
+        /* NATIVE BROWSER PERMISSION BANNER */
+        .permission-banner {
+            padding: 14px; background: rgba(10, 132, 255, 0.1); border: 1px dashed var(--accent-blue);
+            border-radius: 16px; text-align: center; margin-bottom: 15px; font-weight: 600; font-size: 0.9rem;
+            cursor: pointer; color: var(--accent-blue); display: block;
+        }
+
         .metric-card { padding: 30px 20px; text-align: center; margin-bottom: 20px; border-radius: 24px; }
         .lbl { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 1.5px; }
         .val { font-size: 3.5rem; font-weight: 800; margin-top: 5px; color: var(--text-main); letter-spacing: -1.5px; }
 
-        /* ATTRACTIVE CONTROLLER UI FOR MOBILE */
         .premium-config-card { padding: 22px; margin-bottom: 20px; border-radius: 24px; }
         .config-title-block { text-align: left; margin-bottom: 18px; }
         .config-main-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
@@ -74,7 +80,6 @@
             box-shadow: 0 4px 12px rgba(0, 122, 255, 0.25);
         }
 
-        /* CUSTOM IN-UI POPUP MODAL STYLING */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(5, 10, 20, 0.85); backdrop-filter: blur(8px);
@@ -83,30 +88,18 @@
             transition: opacity 0.3s ease, visibility 0.3s ease;
         }
         .modal-overlay.active { opacity: 1; visibility: visible; }
-
-        .modal-box {
-            width: 88%; max-width: 360px; padding: 25px; text-align: center;
-            border: 1px solid rgba(255,255,255,0.1); transform: scale(0.9);
-            transition: transform 0.3s ease;
-        }
+        .modal-box { width: 88%; max-width: 360px; padding: 25px; text-align: center; border: 1px solid rgba(255,255,255,0.1); transform: scale(0.9); transition: transform 0.3s ease; }
         .modal-overlay.active .modal-box { transform: scale(1); }
-
         .modal-box h3 { font-size: 1.3rem; margin-bottom: 12px; font-weight: 700; }
         .modal-box p { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px; line-height: 1.4; }
-        
         .modal-buttons { display: flex; gap: 12px; justify-content: center; }
-        .modal-btn {
-            flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 0.95rem; cursor: pointer; border: none;
-        }
+        .modal-btn { flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 0.95rem; cursor: pointer; border: none; }
         .btn-cancel { background: rgba(255,255,255,0.1); color: var(--text-main); }
         .btn-confirm { background: var(--accent-blue); color: white; }
 
         .graph-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 5px;}
         .graph-title { font-size: 1.2rem; font-weight: 700; }
-        select { 
-            background: var(--glass-bg); color: var(--text-main); padding: 8px 12px; 
-            border-radius: 10px; border: 1px solid var(--glass-border); font-size: 0.85rem; font-weight: 600; outline: none;
-        }
+        select { background: var(--glass-bg); color: var(--text-main); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--glass-border); font-size: 0.85rem; font-weight: 600; outline: none; }
         .chart-card { padding: 15px; height: 260px; position: relative; margin-bottom: 20px; }
     </style>
 </head>
@@ -130,6 +123,10 @@
                 <div id="statusDot" class="status-dot"></div>
                 <span id="connectionText">Connecting Telemetry...</span>
             </div>
+        </div>
+
+        <div id="permissionRequestBanner" class="permission-banner" onclick="requestBrowserNotificationPermission()">
+            🔔 Tap here to allow native Chrome Notifications
         </div>
         
         <div class="metric-card glass-panel" id="waterCard">
@@ -169,6 +166,30 @@
     <script>
         window.userThreshold = 6.0; 
         let pendingValueToSave = 6.0;
+        let lastAlertTime = 0;
+
+        // Hide banner immediately if user already granted permission previously
+        if (window.Notification && Notification.permission === "granted") {
+            document.getElementById('permissionRequestBanner').style.display = 'none';
+        }
+
+        // EXPLICIT CHROME USER-GESTURE TRIGGER
+        function requestBrowserNotificationPermission() {
+            if (!("Notification" in window)) {
+                alert("This mobile browser engine does not support native notification scripts.");
+                return;
+            }
+            
+            Notification.requestPermission().then((permission) => {
+                if (permission === "granted") {
+                    document.getElementById('permissionRequestBanner').style.display = 'none';
+                    // Fire instant native confirmation badge
+                    new Notification("Circuit Hub Status", { body: "✔ Native notifications successfully active!" });
+                } else {
+                    alert("Permission denied. To enable alerts later, tap the lock icon in your Chrome address bar and change Site Settings.");
+                }
+            });
+        }
 
         function adjustValue(amount) {
             const input = document.getElementById('thresholdInput');
@@ -178,11 +199,9 @@
             }
         }
 
-        // OPEN CUSTOM POPUP METHOD
         function openCustomModal() {
             pendingValueToSave = parseFloat(document.getElementById('thresholdInput').value);
             if (!isNaN(pendingValueToSave)) {
-                // Update the text directly inside the UI popup window
                 document.getElementById('modalMessage').innerText = `Are you sure you want to change the threshold level to ${pendingValueToSave.toFixed(1)} cm?`;
                 document.getElementById('customModal').classList.add('active');
             }
@@ -190,24 +209,42 @@
 
         function closeCustomModal() {
             document.getElementById('customModal').classList.remove('active');
-            // Revert value to match current database setting if canceled
             document.getElementById('thresholdInput').value = window.userThreshold.toFixed(1);
         }
 
-        // COMMITS DATA IF USER PRESSES "YES" INSIDE CUSTOM MODAL
         function commitThresholdToDatabase() {
             document.getElementById('customModal').classList.remove('active');
-            
             firebase.database().ref('config/threshold').set(pendingValueToSave)
                 .then(() => {
                     const btn = document.querySelector('.save-action-button');
-                    btn.innerText = 'Saved!';
-                    btn.style.background = 'var(--success-green)';
+                    btn.innerText = 'Saved!'; btn.style.background = 'var(--success-green)';
                     setTimeout(() => { btn.innerText = 'Save Level'; btn.style.background = 'var(--accent-blue)'; }, 2000);
                 });
         }
 
-        // --- CORE DATABASE ENGINE ---
+        function sendNativeChromeNotification(currentLevel) {
+            let now = Date.now();
+            if (now - lastAlertTime > 60000) { // Limit to once per minute max
+                lastAlertTime = now;
+                
+                // Trigger Local Browser Notification
+                if (window.Notification && Notification.permission === "granted") {
+                    new Notification("⚠ CRITICAL WATER ALERT", {
+                        body: `Level dropped below safety limit! Current: ${currentLevel.toFixed(1)} cm`,
+                        requireInteraction: true // Keeps the notification visible until cleared
+                    });
+                }
+                
+                // KEEP THE NTFY BACKUP RUNNING IN BACKGROUND ALWAYS
+                fetch("https://ntfy.sh/circuithub_alerts", {
+                    method: 'POST',
+                    body: `ALERT: Water level is low! Current: ${currentLevel.toFixed(1)}cm`,
+                    headers: { 'Title': 'Circuit Hub Alert', 'Priority': 'high' }
+                }).catch(e => console.log(e));
+            }
+        }
+
+        // --- DATABASE LOGIC ---
         const firebaseConfig = { databaseURL: "https://water-level-monitoring-8a0f5-default-rtdb.firebaseio.com/" };
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.database();
@@ -252,6 +289,7 @@
 
                         if (activePoint.y <= window.userThreshold) {
                             levelVal.style.color = "var(--warning-red)"; waterCard.style.borderColor = "var(--warning-red)"; 
+                            sendNativeChromeNotification(activePoint.y); // Fire notification routine
                         } else {
                             levelVal.style.color = "var(--text-main)"; waterCard.style.borderColor = "transparent";
                         }
